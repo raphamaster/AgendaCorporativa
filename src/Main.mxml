@@ -1,0 +1,292 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:WindowedApplication xmlns:fx="http://ns.adobe.com/mxml/2009"
+					   xmlns:s="library://ns.adobe.com/flex/spark"
+					   xmlns:mx="library://ns.adobe.com/flex/mx"
+					   backgroundAlpha="0.0" creationComplete="init()" showStatusBar="false" width="700">
+	<s:states>
+		<s:State name="Principal"/>
+		<s:State name="EditarContatos"/>
+		<s:State name="Login"/>
+	</s:states>
+		
+	<fx:Script>
+		<![CDATA[
+						
+			import mx.collections.ArrayCollection;
+			import mx.containers.TitleWindow;
+			import mx.controls.Alert;
+			import mx.events.CloseEvent;
+			import mx.managers.PopUpManager;
+			import mx.messaging.messages.ErrorMessage;
+			import mx.rpc.xml.SimpleXMLDecoder;
+			import mx.utils.ArrayUtil;			
+			import br.com.chiaperini.DB;
+			
+			[Bindable]
+			public var returnObj:Object;
+			
+			private var time:Timer = new Timer(1000, 1);
+			private var returnPesquisa:Object;
+									
+			//--------------------------------------------------------------------------
+			//
+			//  Metodo inicial retornando todos os funcionarios cadastrados
+			//
+			//--------------------------------------------------------------------------
+			private function init():void
+			{
+				this.addEventListener(MouseEvent.MOUSE_DOWN, onMouseDown);
+								
+				DB.Inicia();
+				returnObj = DB.executeQuery("SELECT * FROM contatos").data;
+				
+				dgContatos.dataProvider = returnObj;
+												
+				// Timer da pesquisa para aguardar quando digita
+				time.addEventListener("timer", TimeEnd);
+				// Evento para quando digitar
+				pesquisa.addEventListener(Event.CHANGE, changeFiltro)
+				
+			}
+			
+			//--------------------------------------------------------------------------
+			//
+			//  Filtro de dados
+			//
+			//--------------------------------------------------------------------------
+			private function changeFiltro(e:Event):void
+			{
+				// Para o Timer, se já estiver parado, não faz nada
+				time.stop();
+				// Inicia o Timer
+				time.start();
+			}
+			
+			private function TimeEnd(e:TimerEvent):void
+			{
+				// se o evento for executado, chama a função que faz a busca
+				pesquisaFuncionarios();
+			}
+			
+			public function pesquisaFuncionarios():void
+			{
+				var sql:String = "SELECT * FROM  contatos WHERE nome LIKE '"+pesquisa.text+"%'";				
+				
+				try{
+					DB.Inicia();
+					
+					returnPesquisa = DB.executeQuery(sql).data;
+					
+				} catch(e:ErrorMessage) {
+					Alert.show("Erro: "+e.faultString);
+				}
+				
+				dgContatos.dataProvider = returnPesquisa;
+				
+			}
+			
+			//--------------------------------------------------------------------------
+			//
+			//  Metodo para fechar a App
+			//
+			//--------------------------------------------------------------------------
+			private function onClose(evt:MouseEvent):void
+			{
+				stage.nativeWindow.close();
+			}
+			
+			//--------------------------------------------------------------------------
+			//
+			//  Metodo para minimizar a App
+			//
+			//--------------------------------------------------------------------------
+			private function onMinimize(evt:MouseEvent):void
+			{
+				stage.nativeWindow.minimize();
+			}
+			
+			//--------------------------------------------------------------------------
+			//
+			//  Metodo para arrastar a App no Desktop
+			//
+			//--------------------------------------------------------------------------
+			private function onMouseDown(evt:MouseEvent):void
+			{
+				stage.nativeWindow.startMove();
+			}
+			
+			
+			//--------------------------------------------------------------------------
+			//
+			//  Metodo para verificar validar de codigo para adicionar, alterar e exluir contatos da lista
+			//
+			//--------------------------------------------------------------------------
+			protected function editContatos(event:MouseEvent):void
+			{
+				if(txtSenha.text == "corp")
+				{
+					currentState = 'EditarContatos';		
+				} else
+				{
+					Alert.show("Senha Errada!");
+				}
+												
+			}
+			
+			//--------------------------------------------------------------------------
+			//
+			//  Metodo para inserir novos contatos na lista
+			//
+			//--------------------------------------------------------------------------
+			private function insertContatos():void
+			{					
+				var sql:String = "INSERT INTO contatos(nome, setor, ramal, email) VALUES('"+txtNome.text+"','"+txtSetor.text+"','"+int(txtRamal.text)+"','"+txtEmail.text+"')";
+				
+				try{
+					DB.Inicia();
+					
+					DB.executeQuery(sql);
+					
+				} catch(e:ErrorMessage) {
+					Alert.show("Erro: "+e.faultString);
+				}
+				
+				init();
+			}
+			
+			//--------------------------------------------------------------------------
+			//
+			//  Metodo para atulizar os contatos
+			//
+			//--------------------------------------------------------------------------
+			private function updateContatos():void
+			{					
+				var sql:String = "UPDATE contatos SET nome='"+txtNome.text+"', setor='"+txtSetor.text+"', ramal="+txtRamal.text+", email='"+txtEmail.text+"' WHERE id="+dgEditContatos.selectedItem.id;
+												
+				try{
+					DB.Inicia();
+					
+					DB.executeQuery(sql);
+					
+				} catch(e:ErrorMessage) {
+					Alert.show("Erro: "+e.faultString);
+				}
+				
+				init();
+			}
+			
+			
+			//--------------------------------------------------------------------------
+			//
+			//  Metodos para deletar os contatos
+			//
+			//--------------------------------------------------------------------------			
+			private function handlerDelete(e:Event):void{
+				Alert.yesLabel = "Sim";
+				Alert.noLabel = "Não";
+				Alert.show("Deseja realmente exluir este contato ?", "CUIDADO!", 3, this, deleteItem);
+			}
+			
+			private function deleteItem(e:CloseEvent):void
+			{
+				if(e.detail == Alert.YES)
+				{
+					var sql:String = "DELETE FROM contatos WHERE id="+dgEditContatos.selectedItem.id;				
+					
+					try{
+						DB.Inicia();
+						
+						DB.executeQuery(sql);
+						
+						//Atualizando Datagrid
+						init();
+						
+					} catch(e:ErrorMessage) {
+						Alert.show("Erro: "+e.faultString);
+					}
+				}
+			}
+			
+		]]>
+	</fx:Script>
+		
+	<s:Panel includeIn="Principal" left="10" right="10" top="10" bottom="10"
+			 title="Agenda Coporativa">
+		<s:layout>
+			<s:BasicLayout/>
+		</s:layout>
+		
+		<s:Label x="14" y="23" fontSize="20" text="Pesquisa:"/>		
+		
+		<s:TextInput id="pesquisa" y="14" left="120" right="10" height="40"
+					 fontSize="20"/>
+				
+		
+		<mx:DataGrid id="dgContatos" left="11" right="9" top="75" bottom="30" fontSize="15">
+			<mx:columns>				
+				<mx:DataGridColumn headerText="Nome." 	dataField="nome" width="200"/>
+				<mx:DataGridColumn headerText="Setor" 	dataField="setor" textAlign="center"/>
+				<mx:DataGridColumn headerText="Ramal"	dataField="ramal" width="55" fontWeight="bold" textAlign="center"/>
+				<mx:DataGridColumn headerText="E-mail" 	dataField="email" />				
+			</mx:columns>
+		</mx:DataGrid>
+				
+		<s:Image y="-28" right="5" source="assets/close.png" click="onClose(event)"/>
+		<s:Image y="-20" right="35" click="onMinimize(event)" source="assets/minimize.png"/>
+		<s:Button y="-28" right="60" label="Editar Contatos" click="currentState='Login'"/>
+	</s:Panel>
+	
+	<s:Panel includeIn="EditarContatos" left="10" right="10" top="10" bottom="10"
+			 title="Editar Contatos">
+				
+		<mx:DataGrid id="dgEditContatos" left="11" right="9" top="166" bottom="30" dataProvider="{returnObj}">
+			<mx:columns>
+				<mx:DataGridColumn headerText="ID" 		dataField="id"  visible="false"/>
+				<mx:DataGridColumn headerText="nome." 	dataField="nome"  />
+				<mx:DataGridColumn headerText="setor" 	dataField="setor" />
+				<mx:DataGridColumn headerText="ramal."	dataField="ramal" width="50"/>
+				<mx:DataGridColumn headerText="email" 	dataField="email" />				
+			</mx:columns>
+		</mx:DataGrid>
+		
+		<mx:Form y="10" width="436" height="148" horizontalCenter="0" paddingTop="0">
+			<mx:FormItem label="Nome">
+				<s:TextInput id="txtNome" width="300" text="{dgEditContatos.selectedItem.nome}"/>				
+			</mx:FormItem>
+			<mx:FormItem label="Setor">
+				<s:TextInput id="txtSetor" width="300" text="{dgEditContatos.selectedItem.setor}"/>				
+			</mx:FormItem>
+			<mx:FormItem label="Ramal">
+				<s:TextInput id="txtRamal" width="300" text="{dgEditContatos.selectedItem.ramal}"/>				
+			</mx:FormItem>
+			<mx:FormItem label="E-Mail">
+				<s:TextInput id="txtEmail" width="300" text="{dgEditContatos.selectedItem.email}"/>				
+			</mx:FormItem>
+			<mx:FormItem direction="horizontal">
+				<s:Button label="Cadastrar" click="insertContatos()"/>
+				<s:Button label="Atualizar" click="updateContatos()"/>
+				<s:Button label="Excluir" click="handlerDelete(event)"/>
+			</mx:FormItem>
+		</mx:Form>
+		
+		<s:Image y="-28" right="5" source="assets/close.png" click="onClose(event)"/>
+		<s:Image y="-20" right="35" click="onMinimize(event)" source="assets/minimize.png"/>
+		<s:Button y="-29" right="60" label="Voltar" click="currentState=''"/>
+		
+	</s:Panel>
+	<s:Panel includeIn="Login" left="10" right="10" top="10" bottom="10">
+		<s:Group width="532" height="196" horizontalCenter="0" verticalCenter="0">
+			<s:Label y="25" color="#053D51" fontFamily="Verdana" fontSize="20" horizontalCenter="0"
+					 text="Código para alterações"/>
+			<s:TextInput id="txtSenha" x="164" y="54" width="207" height="52" fontSize="20"
+						 textAlign="center" displayAsPassword="true"/>
+			<s:Button x="162" y="129" width="89" height="32" label="Entrar"
+					  click="editContatos(event)"/>
+			<s:Button x="278" y="129" width="89" height="32" label="Voltar" click="currentState=''"/>
+		</s:Group>
+		<s:Image y="-28" right="5" source="assets/close.png" click="onClose(event)"/>
+		<s:Image y="-20" right="35" click="onMinimize(event)" source="assets/minimize.png"/>
+		<s:Image height="32" horizontalCenter="0" source="assets/key.png" verticalCenter="-100"/>
+	</s:Panel>
+		
+</s:WindowedApplication>
